@@ -45,6 +45,14 @@ walnut-10:
 walnut-all:
 	$(PY) scripts/download_walnut.py --dose all
 
+hku-hn:
+	$(PIP) install -r requirements-hku.txt
+	$(PY) scripts/download_hku_hn.py --case iba/hn/HN-CHUM-006
+
+hku-hn-smoke:
+	$(PIP) install -r requirements-hku.txt
+	$(PY) scripts/download_hku_hn.py --case iba/hn/HN-CHUM-006 --max-files 60
+
 webui:
 	cd webapp && npm install && npm run build
 

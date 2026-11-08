@@ -14,6 +14,8 @@ $denoise = "auto"
 $device = "CPU"
 $source = "synthetic"
 $walnutDose = "10"
+$hkuCase = "HN-CHUM-006"
+$hkuScanner = "iba"
 
 for ($i = 0; $i -lt $args.Count; $i++) {
   switch ($args[$i]) {
@@ -24,6 +26,8 @@ for ($i = 0; $i -lt $args.Count; $i++) {
     "-Device" { $device = $args[++$i] }
     "-Source" { $source = $args[++$i] }
     "-WalnutDose" { $walnutDose = $args[++$i] }
+    "-HkuCase" { $hkuCase = $args[++$i] }
+    "-HkuScanner" { $hkuScanner = $args[++$i] }
   }
 }
 
@@ -34,6 +38,8 @@ if (-not (Test-Path .\models\denoise_stub\model.xml)) {
 & .\.venv\Scripts\python.exe -m src.pipeline `
   --source $source `
   --walnut-dose $walnutDose `
+  --hku-case $hkuCase `
+  --hku-scanner $hkuScanner `
   --volume-size $volume `
   --angles $angles `
   --detector $detector `

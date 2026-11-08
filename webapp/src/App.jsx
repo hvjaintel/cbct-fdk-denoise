@@ -4,6 +4,8 @@ import SliceGrid from "./components/SliceGrid.jsx";
 const DEFAULTS = {
   data_source: "synthetic",
   walnut_dose: "10",
+  hku_case: "HN-CHUM-006",
+  hku_scanner: "iba",
   volume_size: 48,
   n_angles: 60,
   detector_size: 64,
@@ -14,6 +16,9 @@ const DEFAULTS = {
 
 function sourceSelectValue(form) {
   if (form.data_source === "walnut") return `walnut_${form.walnut_dose}`;
+  if (form.data_source === "hku_hn") {
+    return `hku_${form.hku_scanner}_${form.hku_case}`;
+  }
   return "synthetic";
 }
 
@@ -77,12 +82,17 @@ export default function App() {
 
   const busy = live.status === "running";
   const isWalnut = form.data_source === "walnut";
+  const isHku = form.data_source === "hku_hn";
+  const isReal = isWalnut || isHku;
   const sources = datasets?.sources ?? [
     { id: "synthetic", label: "Synthetic phantom", available: true, data_source: "synthetic" },
   ];
-  const selected = sources.find((s) => s.id === sourceSelectValue(form));
-  const selectedReady = selected ? selected.available !== false : !isWalnut;
-  const stagedWalnut = sources.filter((s) => s.data_source === "walnut" && s.available);
+  const selectedId = sourceSelectValue(form);
+  const selected =
+    sources.find((s) => s.id === selectedId) ||
+    sources.find((s) => s.data_source === form.data_source && s.available) ||
+    sources[0];
+  const selectedReady = selected ? selected.available !== false : !isReal;
 
   const kpis = useMemo(() => {
     if (!result) return [];
@@ -91,10 +101,12 @@ export default function App() {
       result.quality?.snr_denoise ??
       "—";
     const psnrLabel = result.quality?.psnr_denoise_vs_phantom != null ? "PSNR↑" : "SNR";
-    const sourceLabel =
-      result.source === "walnut"
-        ? `Walnut ${result.walnut?.dose ?? ""}%`.trim()
-        : "Synthetic";
+    let sourceLabel = "Synthetic";
+    if (result.source === "walnut") {
+      sourceLabel = `Walnut ${result.walnut?.dose ?? ""}%`.trim();
+    } else if (result.source === "hku_hn") {
+      sourceLabel = `HKU ${result.hku?.case_id ?? "HN"}`;
+    }
     return [
       { label: "Source", value: sourceLabel },
       { label: "Total", value: `${result.timings_total_ms} ms` },
@@ -120,6 +132,13 @@ export default function App() {
         data_source: "walnut",
         walnut_dose: src.walnut_dose || id.replace("walnut_", ""),
       }));
+    } else if (src.data_source === "hku_hn") {
+      setForm((f) => ({
+        ...f,
+        data_source: "hku_hn",
+        hku_case: src.hku_case || "HN-CHUM-006",
+        hku_scanner: src.hku_scanner || "iba",
+      }));
     } else {
       setForm((f) => ({ ...f, data_source: "synthetic" }));
     }
@@ -134,13 +153,19 @@ export default function App() {
     });
   }
 
+  const attribution = result?.walnut?.attribution || result?.hku?.attribution;
+  const stageHint =
+    isHku && !selectedReady
+      ? datasets?.stage_hku_hint || "python scripts/download_hku_hn.py --case iba/hn/HN-CHUM-006"
+      : null;
+
   return (
     <div className="app">
       <header className="hero">
         <h1 className="brand">CBCT FDK Denoise</h1>
         <p className="tagline">
-          Reference cone-beam CT pipeline: synthetic phantom or Zenodo walnut
-          dose datasets, FDK reconstruction, and RED-CNN / stub / classical denoising.
+          Reference cone-beam CT pipeline: synthetic phantom, Zenodo walnut doses, or HKU
+          head-and-neck projections (MIT), with FDK and RED-CNN / stub / classical denoise.
         </p>
         <p className="disclaimer">
           Not for clinical or diagnostic use — evaluation sample only.
@@ -152,7 +177,7 @@ export default function App() {
           <h2>Configuration</h2>
           <div className="field">
             <label>Dataset</label>
-            <select value={sourceSelectValue(form)} onChange={(e) => onSourceChange(e.target.value)}>
+            <select value={selected?.id || "synthetic"} onChange={(e) => onSourceChange(e.target.value)}>
               {sources.map((s) => (
                 <option key={s.id} value={s.id} disabled={s.available === false}>
                   {s.label}
@@ -164,9 +189,14 @@ export default function App() {
 
           {isWalnut && (
             <p className="status" style={{ marginTop: 0, marginBottom: 12 }}>
-              {stagedWalnut.length
-                ? `Staged: ${stagedWalnut.map((s) => `${s.walnut_dose}%`).join(", ")} · CC BY 4.0`
-                : `Stage all doses: ${datasets?.stage_all_hint ?? "python scripts/download_walnut.py --dose all"}`}
+              Zenodo walnut · CC BY 4.0
+            </p>
+          )}
+          {isHku && (
+            <p className="status" style={{ marginTop: 0, marginBottom: 12 }}>
+              {selectedReady
+                ? `HKU MedIP CBCT · MIT · ${form.hku_scanner}/hn/${form.hku_case}`
+                : `Not staged. ${stageHint}`}
             </p>
           )}
 
@@ -181,7 +211,7 @@ export default function App() {
             />
           </div>
           <div className="field">
-            <label>{isWalnut ? "Max angles (subsample)" : "Projection angles"}</label>
+            <label>{isReal ? "Max angles (subsample)" : "Projection angles"}</label>
             <input
               type="number"
               min={30}
@@ -191,7 +221,7 @@ export default function App() {
             />
           </div>
           <div className="field">
-            <label>{isWalnut ? "Detector downsample" : "Detector size"}</label>
+            <label>{isReal ? "Detector downsample" : "Detector size"}</label>
             <input
               type="number"
               min={48}
@@ -200,7 +230,7 @@ export default function App() {
               onChange={(e) => update("detector_size", Number(e.target.value))}
             />
           </div>
-          {!isWalnut && (
+          {!isReal && (
             <div className="field">
               <label>Noise σ</label>
               <input
@@ -228,11 +258,6 @@ export default function App() {
               </option>
               <option value="classical">classical</option>
             </select>
-            {!models.redcnn && (
-              <p className="status" style={{ marginTop: 6 }}>
-                RED-CNN IR: python scripts/train_export_red_cnn.py
-              </p>
-            )}
           </div>
           <div className="field">
             <label>Device</label>
@@ -271,9 +296,9 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              {result.walnut?.attribution && (
+              {attribution && (
                 <p className="status" style={{ marginBottom: 14 }}>
-                  Data: {result.walnut.attribution}
+                  Data: {attribution}
                 </p>
               )}
               <SliceGrid result={result} />

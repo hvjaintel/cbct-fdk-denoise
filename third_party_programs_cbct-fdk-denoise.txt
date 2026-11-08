@@ -58,7 +58,15 @@ governed by those separate license terms.
     Do not confuse with third-party pretrained Mayo LDCT checkpoints — those
     have separate dataset/weight terms if you import them.
 
-13. Walnut CBCT projections (optional runtime dataset, not redistributed in this repo)
+13. HKU CBCT projection dataset (optional runtime dataset, not redistributed in this repo)
+    Dataset: hku-mip/cbct_projection (head-and-neck and other anatomies)
+    License: MIT (Hugging Face dataset card + MedIP-HKU/CBCT_projection LICENSE)
+    https://huggingface.co/datasets/hku-mip/cbct_projection
+    https://github.com/MedIP-HKU/CBCT_projection
+    Note: Stage locally via scripts/download_hku_hn.py. Retain MIT notice / attribution
+    when showing or redistributing results derived from this data.
+
+14. Walnut CBCT projections (optional runtime dataset, not redistributed in this repo)
     Cone-Beam Computed Tomography Dataset of a Walnut Imaged at 4 Different Dose Levels
     Creator: Alexander Meaney, University of Helsinki
     DOI: https://doi.org/10.5281/zenodo.11397266

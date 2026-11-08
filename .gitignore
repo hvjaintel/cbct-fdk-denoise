@@ -11,6 +11,8 @@ venv/
 !data/sample/.gitkeep
 data/walnut/**
 !data/walnut/README.md
+data/hku_hn/**
+!data/hku_hn/README.md
 models/**/*.bin
 models/**/*.xml
 models/**/*.onnx

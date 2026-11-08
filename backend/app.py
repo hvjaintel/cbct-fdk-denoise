@@ -21,6 +21,12 @@ sys.path.insert(0, str(ROOT))
 
 from src.config import MODELS_DIR, REDCNN_DIR, default_config  # noqa: E402
 from src.pipeline import run_pipeline  # noqa: E402
+from src.hku_loader import (  # noqa: E402
+    HKU_ATTRIBUTION,
+    HKU_HF_URL,
+    HKU_LICENSE,
+    list_available_hku_hn,
+)
 from src.walnut_loader import (  # noqa: E402
     WALNUT_ATTRIBUTION,
     WALNUT_DOI,
@@ -62,16 +68,32 @@ def _public_result(raw: dict[str, Any]) -> dict[str, Any]:
         "shapes": raw["shapes"],
         "config": raw["config"],
         "walnut": raw.get("walnut"),
+        "hku": raw.get("hku"),
         "slices": slices,
         "projection_preview": _encode_png(
-            raw["volumes"]["projections"][raw["volumes"]["projections"].shape[0] // 2]
+            _normalize_preview(
+                raw["volumes"]["projections"][raw["volumes"]["projections"].shape[0] // 2]
+            )
         ),
     }
 
 
+def _normalize_preview(arr: np.ndarray) -> np.ndarray:
+    lo, hi = float(np.percentile(arr, 1)), float(np.percentile(arr, 99))
+    if hi <= lo:
+        hi = lo + 1e-6
+    return np.clip((arr - lo) / (hi - lo), 0.0, 1.0).astype(np.float32)
+
+
 def _run_job(params: dict[str, Any]) -> None:
     source = (params.get("data_source") or "synthetic").lower()
-    msg0 = "Loading walnut projections…" if source == "walnut" else "Building phantom…"
+    if source == "walnut":
+        msg0 = "Loading walnut projections…"
+    elif source in {"hku_hn", "hku"}:
+        msg0 = "Loading HKU HN projections…"
+        source = "hku_hn"
+    else:
+        msg0 = "Building phantom…"
     with _LOCK:
         _STATE.update({"status": "running", "progress": 5, "message": msg0, "error": None})
     try:
@@ -86,12 +108,18 @@ def _run_job(params: dict[str, Any]) -> None:
             device=params.get("device", "CPU"),
             data_source=source,
             walnut_dose=str(params.get("walnut_dose", "10")),
+            hku_case=str(params.get("hku_case", "HN-CHUM-006")),
+            hku_scanner=str(params.get("hku_scanner", "iba")),
         )
         with _LOCK:
             _STATE.update(
                 {
                     "progress": 25,
-                    "message": "FDK reconstructing…" if source == "walnut" else "Forward projecting…",
+                    "message": (
+                        "FDK reconstructing…"
+                        if source in {"walnut", "hku_hn"}
+                        else "Forward projecting…"
+                    ),
                 }
             )
         result = run_pipeline(cfg, save=True)
@@ -156,6 +184,45 @@ def datasets():
                 "stage_hint": f"python scripts/download_walnut.py --dose {dose}",
             }
         )
+
+    hku_staged = list_available_hku_hn()
+    hku_sources = []
+    if hku_staged:
+        for info in hku_staged:
+            hku_sources.append(
+                {
+                    "id": f"hku_{info['scanner']}_{info['case_id']}",
+                    "label": f"HKU HN {info['case_id']} ({info['scanner']})",
+                    "available": True,
+                    "data_source": "hku_hn",
+                    "hku_case": info["case_id"],
+                    "hku_scanner": info["scanner"],
+                    "path": info["path"],
+                    "n_projections": info["n_projections"],
+                    "license": HKU_LICENSE,
+                    "attribution": HKU_ATTRIBUTION,
+                    "url": HKU_HF_URL,
+                    "stage_hint": (
+                        f"python scripts/download_hku_hn.py --case {info['scanner']}/hn/{info['case_id']}"
+                    ),
+                }
+            )
+    else:
+        hku_sources.append(
+            {
+                "id": "hku_hn_placeholder",
+                "label": "HKU HN (not staged)",
+                "available": False,
+                "data_source": "hku_hn",
+                "hku_case": "HN-CHUM-006",
+                "hku_scanner": "iba",
+                "license": HKU_LICENSE,
+                "attribution": HKU_ATTRIBUTION,
+                "url": HKU_HF_URL,
+                "stage_hint": "python scripts/download_hku_hn.py --case iba/hn/HN-CHUM-006",
+            }
+        )
+
     return jsonify(
         {
             "sources": [
@@ -166,8 +233,10 @@ def datasets():
                     "data_source": "synthetic",
                 },
                 *walnut_sources,
+                *hku_sources,
             ],
             "stage_all_hint": "python scripts/download_walnut.py --dose all",
+            "stage_hku_hint": "python scripts/download_hku_hn.py --case iba/hn/HN-CHUM-006",
         }
     )
 

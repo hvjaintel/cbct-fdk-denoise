@@ -16,21 +16,23 @@ function Frame({ title, subtitle, b64 }) {
 
 export default function SliceGrid({ result }) {
   const stages =
-    result.source === "walnut"
+    result.source === "synthetic"
       ? [
+          { key: "phantom", label: "Phantom" },
           { key: "recon", label: "FDK recon" },
           { key: "denoised", label: "Denoised" },
         ]
       : [
-          { key: "phantom", label: "Phantom" },
           { key: "recon", label: "FDK recon" },
           { key: "denoised", label: "Denoised" },
         ];
   const views = ["axial", "coronal", "sagittal"];
-  const projSub =
-    result.source === "walnut" && result.walnut?.dose
-      ? `walnut ${result.walnut.dose}%`
-      : "mid-angle";
+  let projSub = "mid-angle";
+  if (result.source === "walnut" && result.walnut?.dose) {
+    projSub = `walnut ${result.walnut.dose}%`;
+  } else if (result.source === "hku_hn" && result.hku?.case_id) {
+    projSub = `HKU ${result.hku.case_id}`;
+  }
 
   return (
     <div className="views">

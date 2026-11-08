@@ -12,6 +12,7 @@ MODELS_DIR = ROOT / "models" / "denoise_stub"
 REDCNN_DIR = ROOT / "models" / "red_cnn"
 OUTPUT_DIR = ROOT / "output"
 WALNUT_DATA_DIR = ROOT / "data" / "walnut"
+HKU_HN_DATA_DIR = ROOT / "data" / "hku_hn"
 
 
 @dataclass
@@ -36,19 +37,25 @@ class PipelineConfig:
     openvino_model: Path = MODELS_DIR / "model.xml"
     redcnn_model: Path = REDCNN_DIR / "model.xml"
     seed: int = 42
-    # synthetic | walnut
+    # synthetic | walnut | hku_hn
     data_source: str = "synthetic"
     # Zenodo walnut dose level when data_source=walnut
     walnut_dose: str = "10"
     walnut_root: Path = WALNUT_DATA_DIR
     # Recommended COR correction for Zenodo 11397266
     walnut_cor_shift: int = 4
+    # HKU HN case id (folder name) when data_source=hku_hn
+    hku_case: str = "HN-CHUM-006"
+    hku_scanner: str = "iba"
+    hku_root: Path = HKU_HN_DATA_DIR
+    hku_include_scatter: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["openvino_model"] = str(self.openvino_model)
         data["redcnn_model"] = str(self.redcnn_model)
         data["walnut_root"] = str(self.walnut_root)
+        data["hku_root"] = str(self.hku_root)
         return data
 
 
@@ -65,4 +72,6 @@ def default_config(**overrides: Any) -> PipelineConfig:
         cfg.redcnn_model = Path(cfg.redcnn_model)
     if isinstance(cfg.walnut_root, str):
         cfg.walnut_root = Path(cfg.walnut_root)
+    if isinstance(cfg.hku_root, str):
+        cfg.hku_root = Path(cfg.hku_root)
     return cfg

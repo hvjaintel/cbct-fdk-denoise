@@ -30,7 +30,17 @@ Artifacts land in `output/` (`*.npy`, `last_run.json`, `preview/*.png`).
 .\.venv\Scripts\python.exe .\scripts\download_walnut.py --dose 10
 ```
 
-Then select **Walnut (Zenodo)** in the dashboard, or use `-Source walnut`. See [data/walnut/README.md](../../data/walnut/README.md).
+Then select **Walnut …** in the dashboard, or use `-Source walnut`. See [data/walnut/README.md](../../data/walnut/README.md).
+
+### Optional HKU head-and-neck CBCT (MIT)
+
+```powershell
+.\.venv\Scripts\pip.exe install -r requirements-hku.txt
+.\.venv\Scripts\python.exe .\scripts\download_hku_hn.py --case iba/hn/HN-CHUM-006
+.\run.ps1 -Source hku_hn -HkuCase HN-CHUM-006 -HkuScanner iba
+```
+
+See [data/hku_hn/README.md](../../data/hku_hn/README.md).
 
 ### Web dashboard
 

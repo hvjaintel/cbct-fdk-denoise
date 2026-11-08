@@ -7,7 +7,7 @@
 
 Sample application for **cone-beam CT (CBCT)** evaluation workflows:
 
-1. Synthetic 3D phantom **or** optional **Walnut (Zenodo)** real projections ([CC BY 4.0](https://doi.org/10.5281/zenodo.11397266))
+1. Synthetic 3D phantom, optional **Walnut (Zenodo)** projections ([CC BY 4.0](https://doi.org/10.5281/zenodo.11397266)), or **HKU head-and-neck CBCT projections** ([MIT](https://huggingface.co/datasets/hku-mip/cbct_projection))
 2. Cone-beam forward projection with additive noise (synthetic path)
 3. **FDK** reconstruction (NumPy/SciPy reference implementation)
 4. Denoising via **RED-CNN** (OpenVINO, tiled) → stub IR → **classical** fallback
@@ -53,6 +53,17 @@ make docker-down
 ```
 
 See [data/walnut/README.md](data/walnut/README.md). Attribution (CC BY 4.0) is required.
+
+## Optional: HKU head-and-neck CBCT projections (MIT)
+
+```powershell
+.\.venv\Scripts\pip.exe install -r requirements-hku.txt
+.\.venv\Scripts\python.exe .\scripts\download_hku_hn.py --case iba/hn/HN-CHUM-006
+# smoke: add --max-files 60
+.\run.ps1 -Source hku_hn -HkuCase HN-CHUM-006 -HkuScanner iba
+```
+
+See [data/hku_hn/README.md](data/hku_hn/README.md). Dataset card license: **MIT**.
 
 ## What the UI shows
 

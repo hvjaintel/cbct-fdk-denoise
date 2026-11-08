@@ -14,6 +14,7 @@ from .fdk import reconstruct_fdk
 from .metrics import psnr, snr_estimate, timed
 from .phantom import shepp_logan_3d
 from .projector import forward_project
+from .hku_loader import load_hku_hn_projections
 from .walnut_loader import load_walnut_projections
 
 
@@ -38,6 +39,7 @@ def run_pipeline(cfg: PipelineConfig | None = None, save: bool = True) -> dict[s
     timings: dict[str, float] = {}
     source = (cfg.data_source or "synthetic").lower()
     walnut_info: dict[str, Any] | None = None
+    hku_info: dict[str, Any] | None = None
     phantom: np.ndarray | None = None
 
     if source == "walnut":
@@ -49,6 +51,21 @@ def run_pipeline(cfg: PipelineConfig | None = None, save: bool = True) -> dict[s
                 max_angles=cfg.geometry.n_angles,
                 volume_size=cfg.geometry.volume_size,
                 cor_shift=cfg.walnut_cor_shift,
+            )
+        cfg.geometry = geo
+        timings["phantom_ms"] = 0.0
+        timings["project_ms"] = timings.pop("load_ms")
+    elif source in {"hku_hn", "hku"}:
+        source = "hku_hn"
+        with timed(timings, "load_ms"):
+            projections, angles, geo, hku_info = load_hku_hn_projections(
+                case_id=cfg.hku_case,
+                root=cfg.hku_root,
+                scanner=cfg.hku_scanner or None,
+                detector_size=cfg.geometry.detector_size,
+                max_angles=cfg.geometry.n_angles,
+                volume_size=cfg.geometry.volume_size,
+                include_scatter=cfg.hku_include_scatter,
             )
         cfg.geometry = geo
         timings["phantom_ms"] = 0.0
@@ -103,6 +120,7 @@ def run_pipeline(cfg: PipelineConfig | None = None, save: bool = True) -> dict[s
         "denoise": denoise_meta,
         "quality": quality,
         "walnut": walnut_info,
+        "hku": hku_info,
         "shapes": {
             "phantom": list(phantom.shape) if phantom is not None else None,
             "projections": list(projections.shape),
@@ -145,8 +163,14 @@ def run_cli() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="CBCT FDK + denoise reference pipeline")
-    parser.add_argument("--source", choices=["synthetic", "walnut"], default="synthetic")
+    parser.add_argument(
+        "--source",
+        choices=["synthetic", "walnut", "hku_hn"],
+        default="synthetic",
+    )
     parser.add_argument("--walnut-dose", default="10", choices=["10", "25", "50", "100"])
+    parser.add_argument("--hku-case", default="HN-CHUM-006")
+    parser.add_argument("--hku-scanner", default="iba")
     parser.add_argument("--volume-size", type=int, default=64)
     parser.add_argument("--angles", type=int, default=90)
     parser.add_argument("--detector", type=int, default=96)
@@ -171,9 +195,11 @@ def run_cli() -> None:
         device=args.device,
         data_source=args.source,
         walnut_dose=args.walnut_dose,
+        hku_case=args.hku_case,
+        hku_scanner=args.hku_scanner,
     )
     result = run_pipeline(cfg, save=not args.no_save)
-    keys = ("source", "timings_ms", "denoise", "quality", "shapes", "walnut")
+    keys = ("source", "timings_ms", "denoise", "quality", "shapes", "walnut", "hku")
     print(json.dumps({k: result.get(k) for k in keys}, indent=2))
 
 
