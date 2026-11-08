@@ -1,0 +1,3 @@
+# Optional: only needed to train/export RED-CNN IR (runtime uses OpenVINO only)
+torch>=2.1
+onnxscript>=0.1.0

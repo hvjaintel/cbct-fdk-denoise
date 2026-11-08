@@ -1,0 +1,15 @@
+services:
+  cbct-fdk-denoise:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: cbct-fdk-denoise:local
+    container_name: cbct-fdk-denoise
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+    volumes:
+      - ../output:/app/output
+      - ../models:/app/models
+    restart: unless-stopped

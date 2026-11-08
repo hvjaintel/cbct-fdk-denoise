@@ -1,0 +1,73 @@
+CBCT-FDK-Denoise Third Party Programs File
+
+This file contains the list of third-party software ("third-party programs")
+contained in the Intel reference sample CBCT-FDK-Denoise. This third-party
+software, even if included with the distribution of CBCT-FDK-Denoise, is
+governed by separate license terms. Use of that third-party software is
+governed by those separate license terms.
+
+--------------------------------------------------------------------------------
+1. NumPy
+   License: BSD-3-Clause
+   https://numpy.org/
+
+2. SciPy
+   License: BSD-3-Clause
+   https://scipy.org/
+
+3. OpenCV (opencv-python-headless)
+   License: Apache-2.0
+   https://opencv.org/
+
+4. Pillow
+   License: HPND / PIL License
+   https://python-pillow.org/
+
+5. Flask
+   License: BSD-3-Clause
+   https://flask.palletsprojects.com/
+
+6. Flask-CORS
+   License: MIT
+   https://github.com/corydolphin/flask-cors
+
+7. psutil
+   License: BSD-3-Clause
+   https://github.com/giampaolo/psutil
+
+8. OpenVINO™ Toolkit
+   License: Apache-2.0
+   https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html
+
+9. ONNX
+   License: Apache-2.0
+   https://onnx.ai/
+
+10. React / Vite (web dashboard)
+    License: MIT
+    https://react.dev/  https://vitejs.dev/
+
+11. PyTorch (optional, train/export of RED-CNN only)
+    License: BSD-style (see PyTorch LICENSE)
+    https://pytorch.org/
+
+12. RED-CNN architecture (reference implementation inspired by)
+    Chen et al., "Low-Dose CT with a Residual Encoder-Decoder Convolutional
+    Neural Network", IEEE TMI 2017.
+    This repo ships a demo architecture + synthetic-trained weights recipe only.
+    Do not confuse with third-party pretrained Mayo LDCT checkpoints — those
+    have separate dataset/weight terms if you import them.
+
+13. Walnut CBCT projections (optional runtime dataset, not redistributed in this repo)
+    Cone-Beam Computed Tomography Dataset of a Walnut Imaged at 4 Different Dose Levels
+    Creator: Alexander Meaney, University of Helsinki
+    DOI: https://doi.org/10.5281/zenodo.11397266
+    License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+    https://creativecommons.org/licenses/by/4.0/
+    Note: Stage locally via scripts/download_walnut.py. Attribution is required when
+    results derived from this dataset are shown or redistributed.
+
+NOTE: This sample intentionally avoids GPL-licensed reconstruction toolkits
+(e.g. ASTRA Toolbox) so the reference stack remains commercially friendlier
+under Apache-2.0 + permissive BSD/MIT dependencies. Replace the NumPy FDK
+implementation with a production-grade library only after license review.
