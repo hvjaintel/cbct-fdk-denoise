@@ -33,7 +33,7 @@ class PipelineConfig:
     geometry: GeometryConfig
     noise_sigma: float = 0.02
     denoise_mode: str = "auto"  # auto | redcnn | openvino | classical
-    device: str = "CPU"  # CPU | GPU | AUTO
+    device: str = "CPU"  # CPU | GPU | NPU | AUTO
     openvino_model: Path = MODELS_DIR / "model.xml"
     redcnn_model: Path = REDCNN_DIR / "model.xml"
     seed: int = 42

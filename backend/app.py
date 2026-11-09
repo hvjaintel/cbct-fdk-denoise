@@ -42,6 +42,7 @@ _STATE: dict[str, Any] = {
     "progress": 0,
     "message": "Ready",
     "last_result": None,
+    "volumes": None,  # raw numpy volumes for the 3D scrubber
     "error": None,
 }
 _LOCK = threading.Lock()
@@ -53,6 +54,31 @@ def _encode_png(arr: np.ndarray) -> str:
     buf = io.BytesIO()
     Image.fromarray(img).save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _slice_from_volume(vol: np.ndarray, axis: str, index: int) -> np.ndarray:
+    z, y, x = vol.shape
+    axis = (axis or "axial").lower()
+    if axis == "axial":
+        index = int(np.clip(index, 0, z - 1))
+        return vol[index]
+    if axis == "coronal":
+        index = int(np.clip(index, 0, y - 1))
+        return vol[:, index, :]
+    if axis == "sagittal":
+        index = int(np.clip(index, 0, x - 1))
+        return vol[:, :, index]
+    raise ValueError(f"Unknown axis: {axis}")
+
+
+def _mip_projection(vol: np.ndarray, angle_deg: float) -> np.ndarray:
+    """Simple rotating MIP around the superior-inferior (axis 0) for a 3D feel."""
+    from scipy.ndimage import rotate
+
+    angle = float(angle_deg) % 360.0
+    # Rotate in the (y, x) plane for each z-slab via a single 3D rotate about z
+    rotated = rotate(vol, angle=angle, axes=(1, 2), reshape=False, order=1, mode="constant", cval=0.0)
+    return np.max(rotated, axis=1).astype(np.float32)  # project along coronal-ish axis
 
 
 def _public_result(raw: dict[str, Any]) -> dict[str, Any]:
@@ -126,6 +152,11 @@ def _run_job(params: dict[str, Any]) -> None:
         with _LOCK:
             _STATE.update({"progress": 90, "message": "Packaging previews…"})
         public = _public_result(result)
+        volumes = {
+            k: result["volumes"][k]
+            for k in ("recon", "denoised", "phantom")
+            if k in result["volumes"] and result["volumes"][k] is not None
+        }
         with _LOCK:
             _STATE.update(
                 {
@@ -133,6 +164,7 @@ def _run_job(params: dict[str, Any]) -> None:
                     "progress": 100,
                     "message": "Complete",
                     "last_result": public,
+                    "volumes": volumes,
                 }
             )
     except Exception as exc:  # noqa: BLE001
@@ -262,6 +294,85 @@ def result():
         return jsonify(_STATE["last_result"])
 
 
+@app.get("/api/volume")
+def volume_meta():
+    with _LOCK:
+        vols = _STATE.get("volumes") or {}
+        if not vols:
+            return jsonify({"has_volume": False, "stages": {}}), 404
+        stages = {
+            name: {
+                "shape": list(arr.shape),
+                "axes": {
+                    "axial": int(arr.shape[0]),
+                    "coronal": int(arr.shape[1]),
+                    "sagittal": int(arr.shape[2]),
+                },
+            }
+            for name, arr in vols.items()
+        }
+    return jsonify({"has_volume": True, "stages": stages})
+
+
+@app.get("/api/volume/slice")
+def volume_slice():
+    stage = (request.args.get("stage") or "denoised").lower()
+    axis = (request.args.get("axis") or "axial").lower()
+    try:
+        index = int(request.args.get("index", 0))
+    except ValueError:
+        return jsonify({"error": "index must be an integer"}), 400
+
+    with _LOCK:
+        vols = _STATE.get("volumes") or {}
+        if stage not in vols:
+            # Prefer denoised, then recon
+            if "denoised" in vols:
+                stage = "denoised"
+            elif "recon" in vols:
+                stage = "recon"
+            else:
+                return jsonify({"error": "No volume loaded"}), 404
+        vol = vols[stage]
+
+    try:
+        sl = _slice_from_volume(vol, axis, index)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify(
+        {
+            "stage": stage,
+            "axis": axis,
+            "index": index,
+            "png": _encode_png(_normalize_preview(sl)),
+        }
+    )
+
+
+@app.get("/api/volume/mip")
+def volume_mip():
+    stage = (request.args.get("stage") or "denoised").lower()
+    try:
+        angle = float(request.args.get("angle", 0))
+    except ValueError:
+        return jsonify({"error": "angle must be a number"}), 400
+
+    with _LOCK:
+        vols = _STATE.get("volumes") or {}
+        if stage not in vols:
+            if "denoised" in vols:
+                stage = "denoised"
+            elif "recon" in vols:
+                stage = "recon"
+            else:
+                return jsonify({"error": "No volume loaded"}), 404
+        vol = vols[stage]
+
+    mip = _mip_projection(vol, angle)
+    return jsonify({"stage": stage, "angle": angle % 360.0, "png": _encode_png(_normalize_preview(mip))})
+
+
 @app.post("/api/run")
 def run():
     global _JOB
@@ -269,7 +380,15 @@ def run():
         if _STATE["status"] == "running":
             return jsonify({"error": "Job already running"}), 409
         params = request.get_json(silent=True) or {}
-        _STATE.update({"status": "running", "progress": 1, "message": "Queued", "error": None})
+        _STATE.update(
+            {
+                "status": "running",
+                "progress": 1,
+                "message": "Queued",
+                "error": None,
+                "volumes": None,
+            }
+        )
     _JOB = threading.Thread(target=_run_job, args=(params,), daemon=True)
     _JOB.start()
     return jsonify({"ok": True})

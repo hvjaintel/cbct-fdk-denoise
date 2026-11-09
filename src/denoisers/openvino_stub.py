@@ -43,23 +43,10 @@ def openvino_denoise(
     device: str = "CPU",
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Denoise with a stub OpenVINO IR (small smoothing CNN)."""
-    import openvino as ov
+    from .ov_compile import DEFAULT_NPU_HW, compile_ir
 
-    meta: dict[str, Any] = {"backend": "openvino", "device": device, "model": str(model_xml)}
-    if not model_xml.exists():
-        raise FileNotFoundError(f"OpenVINO model not found: {model_xml}")
-
-    core = ov.Core()
-    available = core.available_devices
-    target = device.upper()
-    if target == "AUTO":
-        target = "GPU" if "GPU" in available else "CPU"
-    if target not in available and target != "CPU":
-        meta["fallback_reason"] = f"{target} unavailable; using CPU"
-        target = "CPU"
-
-    model = core.read_model(model_xml)
-    compiled = core.compile_model(model, target)
+    compiled, target, meta = compile_ir(Path(model_xml), device, spatial=DEFAULT_NPU_HW)
+    meta["backend"] = "openvino"
     meta["device"] = target
     denoised = _slicewise_infer(compiled, volume)
     return denoised, meta
@@ -96,7 +83,24 @@ def resolve_denoise(
                 "RED-CNN mode requested but models/red_cnn/model.xml is missing. "
                 "Run: python scripts/train_export_red_cnn.py"
             )
-        return redcnn_denoise(volume, redcnn_model, device=device)
+        try:
+            return redcnn_denoise(volume, redcnn_model, device=device)
+        except Exception as exc:  # noqa: BLE001
+            # Prefer keeping RED-CNN on CPU over dropping to classical when
+            # the user explicitly selected redcnn (e.g. NPU compile quirks).
+            if (device or "CPU").upper() != "CPU":
+                try:
+                    out, meta = redcnn_denoise(volume, redcnn_model, device="CPU")
+                    meta["fallback_reason"] = f"redcnn {device} failed ({exc}); using CPU"
+                    return out, meta
+                except Exception as exc2:  # noqa: BLE001
+                    exc = f"{exc}; CPU retry failed: {exc2}"
+            out = classical_denoise(volume)
+            return out, {
+                "backend": "classical",
+                "device": "CPU",
+                "fallback_reason": f"redcnn failed: {exc}",
+            }
 
     if mode == "openvino":
         if not model_xml or not model_xml.exists():
@@ -104,17 +108,22 @@ def resolve_denoise(
         return openvino_denoise(volume, model_xml, device=device)
 
     if mode == "auto":
+        # Prefer classical for reliable previews; try RED-CNN then stub with
+        # degenerate-output detection (synthetic RED-CNN often zeros real CBCT).
+        redcnn_err = "skipped"
         if redcnn_model and redcnn_model.exists():
             try:
                 return redcnn_denoise(volume, redcnn_model, device=device)
             except Exception as exc:  # noqa: BLE001
                 redcnn_err = str(exc)
-        else:
-            redcnn_err = "RED-CNN IR not staged"
 
         if model_xml and model_xml.exists():
             try:
                 out, meta = openvino_denoise(volume, model_xml, device=device)
+                from .red_cnn import is_degenerate_volume
+
+                if is_degenerate_volume(out, volume):
+                    raise RuntimeError("stub denoise output collapsed")
                 meta["fallback_reason"] = f"auto: stub after redcnn ({redcnn_err})"
                 return out, meta
             except Exception as exc:  # noqa: BLE001

@@ -259,6 +259,90 @@ button.ghost:hover {
   text-align: center;
 }
 
+.volume-viewer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  animation: rise 0.45s ease both;
+}
+
+.volume-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.volume-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.volume-toggles,
+.axis-row,
+.volume-controls .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.chip.active {
+  color: var(--text);
+  border-color: var(--accent, #3ecf8e);
+  background: color-mix(in srgb, var(--accent, #3ecf8e) 16%, transparent);
+}
+
+.volume-controls {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.field.inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field.inline label {
+  min-width: 48px;
+}
+
+.volume-frame {
+  background: #05090c;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+}
+
+.volume-frame img {
+  display: block;
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #000;
+}
+
+.volume-frame .empty,
+.volume-frame .status {
+  padding: 18px;
+}
+
 @keyframes rise {
   from {
     opacity: 0;

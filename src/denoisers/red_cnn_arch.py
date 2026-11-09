@@ -46,6 +46,6 @@ class REDCNN(nn.Module):
         out = out + residual_2
         out = self.tconv4(self.relu(out))
         out = self.tconv5(self.relu(out))
+        # Residual to input; no final ReLU so the net cannot collapse to all-zeros
         out = out + residual_1
-        out = self.relu(out)
         return out

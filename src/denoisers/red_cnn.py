@@ -8,26 +8,12 @@ from typing import Any
 import numpy as np
 
 from .classical import classical_denoise
+from .ov_compile import DEFAULT_NPU_HW, compile_ir
 
 
 def _compile(model_xml: Path, device: str) -> tuple[Any, str, dict[str, Any]]:
-    import openvino as ov
-
-    meta: dict[str, Any] = {"backend": "redcnn", "model": str(model_xml)}
-    if not model_xml.exists():
-        raise FileNotFoundError(f"RED-CNN IR not found: {model_xml}")
-
-    core = ov.Core()
-    available = core.available_devices
-    target = device.upper()
-    if target == "AUTO":
-        target = "GPU" if "GPU" in available else "CPU"
-    if target not in available and target != "CPU":
-        meta["fallback_reason"] = f"{target} unavailable; using CPU"
-        target = "CPU"
-
-    compiled = core.compile_model(core.read_model(model_xml), target)
-    meta["device"] = target
+    compiled, target, meta = compile_ir(Path(model_xml), device, spatial=DEFAULT_NPU_HW)
+    meta["backend"] = "redcnn"
     return compiled, target, meta
 
 
@@ -88,6 +74,22 @@ def _denoise_slice_tiled(
     return (acc / weight).astype(np.float32)
 
 
+def is_degenerate_volume(out: np.ndarray, reference: np.ndarray) -> bool:
+    """True when denoise output is blank/collapsed relative to the recon."""
+    if out.size == 0:
+        return True
+    omax = float(np.max(out))
+    ostd = float(np.std(out))
+    rstd = float(np.std(reference))
+    if omax < 1e-4:
+        return True
+    if rstd > 1e-3 and ostd < 1e-4:
+        return True
+    if rstd > 1e-3 and ostd < 0.02 * rstd:
+        return True
+    return False
+
+
 def redcnn_denoise(
     volume: np.ndarray,
     model_xml: Path,
@@ -103,7 +105,13 @@ def redcnn_denoise(
     for z in range(volume.shape[0]):
         sl = np.clip(volume[z].astype(np.float32), 0.0, 1.0)
         out[z] = _denoise_slice_tiled(compiled, sl, tile=tile_size)
-    return np.clip(out, 0.0, 1.0), meta
+    out = np.clip(out, 0.0, 1.0)
+    if is_degenerate_volume(out, volume):
+        raise RuntimeError(
+            "RED-CNN output collapsed to near-zero (demo weights are synthetic-only); "
+            "falling back to another denoiser"
+        )
+    return out, meta
 
 
 def try_redcnn_or_raise(

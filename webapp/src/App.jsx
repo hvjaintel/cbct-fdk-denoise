@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import SliceGrid from "./components/SliceGrid.jsx";
+import VolumeViewer from "./components/VolumeViewer.jsx";
 
 const DEFAULTS = {
   data_source: "synthetic",
@@ -302,6 +303,7 @@ export default function App() {
                 </p>
               )}
               <SliceGrid result={result} />
+              <VolumeViewer resultKey={result?.run_id || result?.timestamp || JSON.stringify(result?.metrics || {})} />
             </>
           ) : (
             <div className="empty">
