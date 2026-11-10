@@ -1,2 +1,2 @@
 # cbct-fdk-denoise
-cbct-fdk-denoise curser
+cbct-fdk-denoise cursor
